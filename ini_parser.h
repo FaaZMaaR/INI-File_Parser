@@ -3,6 +3,7 @@
 #include <fstream>
 #include <string>
 #include <set>
+#include <map>
 
 enum class ReadingMode { NEW_LINE, READ_SECT, READ_VAR, READ_VAL, SKIP, END_SECT, END_VAR, WAIT_VAL };
 
@@ -19,12 +20,10 @@ class ini_parser {
 private:
     std::string fileName;
     ReadingMode readingMode;
-    std::string requiredSect, requiredVar, requiredValue;
-    std::set<std::string> possibleVars;
     int rowsCount;
 
 private:
-    void set_requirements(const std::string& varName);
+    std::string get_value_string(const std::string& aSection, const std::string& aVar);
 
     void new_line(char symb, std::string& section, std::string& var);
 
@@ -46,7 +45,26 @@ public:
     ini_parser(const std::string& fileName);
 
     template<typename T>
-    T get_value(const std::string& varName);
+    T get_value(const std::string& aSection,const std::string& aVar) {
+        static_assert(sizeof(T) == -1, "not implemented type for get_value");
+    }
+
+    template<>
+    std::string get_value<std::string>(const std::string& aSection, const std::string& aVar) {
+        return get_value_string(aSection, aVar);
+    }
+
+    template<>
+    int get_value<int>(const std::string& aSection, const std::string& aVar) {
+        std::string str_val = get_value_string(aSection, aVar);
+        return std::stoi(str_val);
+    }
+
+    template<>
+    double get_value<double>(const std::string& aSection, const std::string& aVar) {
+        std::string str_val = get_value_string(aSection, aVar);
+        return std::stod(str_val);
+    }
 };
 
 std::string itos(int number);

@@ -22,16 +22,6 @@ const char* parse_syntax_error::what() const {
 
 ini_parser::ini_parser(const std::string& fileName) : fileName{ fileName }, readingMode{ ReadingMode::NEW_LINE }, rowsCount{ 0 } {}
 
-void ini_parser::set_requirements(const std::string& varName) {
-    auto dotPos = varName.find('.');
-    if (dotPos == std::string::npos) {
-        throw std::runtime_error("wrong variable name (must be \"section.variable\"");
-    }
-    requiredSect = varName.substr(0, dotPos);
-    requiredVar = varName.substr(dotPos + 1, varName.size() - dotPos);
-    requiredValue.clear();
-}
-
 void ini_parser::new_line(char symb, std::string& section, std::string& var) {
     if (symb == '\n') {
         ++rowsCount;
@@ -160,9 +150,7 @@ void ini_parser::wait_val(char symb, std::string& val) {
     }
 }
 
-template<>
-std::string ini_parser::get_value<std::string>(const std::string& varName) {
-    set_requirements(varName);
+std::string ini_parser::get_value_string(const std::string& aSection, const std::string& aVar) {    
     std::ifstream file(fileName);
     if (!file.is_open()) {
         throw std::runtime_error("failed to open file");
@@ -171,7 +159,7 @@ std::string ini_parser::get_value<std::string>(const std::string& varName) {
     std::istreambuf_iterator<char> eofIter;
     readingMode = ReadingMode::NEW_LINE;
     rowsCount = 1;
-    possibleVars.clear();
+    std::map<std::string, std::map<std::string, std::string>> values;
     std::string section;
     std::string var;
     std::string value;
@@ -188,17 +176,13 @@ std::string ini_parser::get_value<std::string>(const std::string& varName) {
 
             case ReadingMode::READ_VAR:
                 if (read_var(*fileIter, var)) {
-                    if (section == requiredSect) {
-                        possibleVars.insert(var);
-                    }
+                    values[section][var] = "";
                 }
                 break;
 
             case ReadingMode::READ_VAL:
                 if (read_val(*fileIter, value)) {
-                    if (section == requiredSect && var == requiredVar) {
-                        requiredValue = value;
-                    }
+                    values[section][var] = value;
                 }
                 break;
 
@@ -225,29 +209,20 @@ std::string ini_parser::get_value<std::string>(const std::string& varName) {
         throw err;
     }
     file.close();
-    if (requiredValue.size() == 0) {
-        if (possibleVars.find(requiredVar) == possibleVars.end()) {
+    if (values.find(aSection) != values.end()) {
+        if (values[aSection].find(aVar) != values[aSection].end()) {
+            value = values[aSection][aVar];
+        }
+        else {
             std::string error = "variable is not found; maybe you meant:";
-            for (auto var : possibleVars) {
-                error += '\n' + var;
+            for (auto var : values[aSection]) {
+                error += '\n' + var.first;                
             }
             throw std::runtime_error(error);
         }
-        else {
-            throw std::runtime_error("variable is empty");
-        }        
     }
-    return requiredValue;
-}
-
-template<>
-int ini_parser::get_value<int>(const std::string& varName) {
-    auto value = get_value<std::string>(varName);
-    return std::stoi(value);
-}
-
-template<>
-double ini_parser::get_value<double>(const std::string& varName) {
-    auto value = get_value<std::string>(varName);
-    return std::stod(value);
+    else {
+        throw std::runtime_error("section is not found");
+    }
+    return value;
 }
