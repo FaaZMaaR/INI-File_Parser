@@ -150,72 +150,74 @@ void ini_parser::wait_val(char symb, std::string& val) {
     }
 }
 
-std::string ini_parser::get_value_string(const std::string& aSection, const std::string& aVar) {    
-    std::ifstream file(fileName);
-    if (!file.is_open()) {
-        throw std::runtime_error("failed to open file");
-    }
-    std::istreambuf_iterator<char> fileIter(file);
-    std::istreambuf_iterator<char> eofIter;
-    readingMode = ReadingMode::NEW_LINE;
-    rowsCount = 1;
-    std::map<std::string, std::map<std::string, std::string>> values;
-    std::string section;
-    std::string var;
-    std::string value;
-    try {
-        for (; fileIter != eofIter; ++fileIter) {
-            switch (readingMode) {
-            case ReadingMode::NEW_LINE:
-                new_line(*fileIter, section, var);
-                break;
+std::string ini_parser::get_value_string(const std::string& aSection, const std::string& aVar) {
+    if (data.empty()) {
+        std::ifstream file(fileName);
+        if (!file.is_open()) {
+            throw std::runtime_error("failed to open file");
+        }
+        std::istreambuf_iterator<char> fileIter(file);
+        std::istreambuf_iterator<char> eofIter;
+        readingMode = ReadingMode::NEW_LINE;
+        rowsCount = 1;
+        std::string section;
+        std::string var;
+        std::string value;
+        try {
+            for (; fileIter != eofIter; ++fileIter) {
+                switch (readingMode) {
+                case ReadingMode::NEW_LINE:
+                    new_line(*fileIter, section, var);
+                    break;
 
-            case ReadingMode::READ_SECT:
-                read_sect(*fileIter, section);
-                break;
+                case ReadingMode::READ_SECT:
+                    read_sect(*fileIter, section);
+                    break;
 
-            case ReadingMode::READ_VAR:
-                if (read_var(*fileIter, var)) {
-                    values[section][var] = "";
+                case ReadingMode::READ_VAR:
+                    if (read_var(*fileIter, var)) {
+                        data[section][var] = "";
+                    }
+                    break;
+
+                case ReadingMode::READ_VAL:
+                    if (read_val(*fileIter, value)) {
+                        data[section][var] = value;
+                    }
+                    break;
+
+                case ReadingMode::SKIP:
+                    skip(*fileIter);
+                    break;
+
+                case ReadingMode::END_SECT:
+                    end_sect(*fileIter);
+                    break;
+
+                case ReadingMode::END_VAR:
+                    end_var(*fileIter);
+                    break;
+
+                case ReadingMode::WAIT_VAL:
+                    wait_val(*fileIter, value);
+                    break;
                 }
-                break;
-
-            case ReadingMode::READ_VAL:
-                if (read_val(*fileIter, value)) {
-                    values[section][var] = value;
-                }
-                break;
-
-            case ReadingMode::SKIP:
-                skip(*fileIter);
-                break;
-
-            case ReadingMode::END_SECT:
-                end_sect(*fileIter);
-                break;
-
-            case ReadingMode::END_VAR:
-                end_var(*fileIter);
-                break;
-
-            case ReadingMode::WAIT_VAL:
-                wait_val(*fileIter, value);
-                break;
             }
         }
-    }
-    catch (parse_syntax_error& err) {
+        catch (parse_syntax_error& err) {
+            file.close();
+            throw err;
+        }
         file.close();
-        throw err;
     }
-    file.close();
-    if (values.find(aSection) != values.end()) {
-        if (values[aSection].find(aVar) != values[aSection].end()) {
-            value = values[aSection][aVar];
+    
+    if (data.find(aSection) != data.end()) {
+        if (data[aSection].find(aVar) != data[aSection].end()) {
+            return data[aSection][aVar];
         }
         else {
             std::string error = "variable is not found; maybe you meant:";
-            for (auto var : values[aSection]) {
+            for (auto var : data[aSection]) {
                 error += '\n' + var.first;                
             }
             throw std::runtime_error(error);
@@ -224,5 +226,4 @@ std::string ini_parser::get_value_string(const std::string& aSection, const std:
     else {
         throw std::runtime_error("section is not found");
     }
-    return value;
 }

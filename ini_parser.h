@@ -20,6 +20,7 @@ class ini_parser {
 private:
     std::string fileName;
     ReadingMode readingMode;
+    std::map<std::string, std::map<std::string, std::string>> data;
     int rowsCount;
 
 private:
